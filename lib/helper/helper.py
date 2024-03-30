@@ -31,7 +31,7 @@ logo=G+"""
 ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
                                                                  
 <<<<<<< STARTING >>>>>>>
-"""%(R+"{v1 }"+G,underline+C+"https://github.com/hackelite01/XSSProbe"+N+G)
+"""+(R+"{v1 }"+G,underline+C+"https://github.com/hackelite01/XSSProbe"+N+G)
 	
 ##=======
 """%(R+"{v1 }"+G,underline+C+"https://github.com/hackelite01/XSSProbe"+N+G)
