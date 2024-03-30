@@ -22,7 +22,7 @@ def session(proxies,headers,cookie):
 	r.cookies.update(json.loads(cookie))
 	return r
 
-logo=G+"""
+logo = G + """
 ██╗  ██╗███████╗███████╗██████╗ ██████╗  ██████╗ ██████╗ ███████╗
 ╚██╗██╔╝██╔════╝██╔════╝██╔══██╗██╔══██╗██╔═══██╗██╔══██╗██╔════╝
  ╚███╔╝ ███████╗███████╗██████╔╝██████╔╝██║   ██║██████╔╝█████╗  
@@ -31,7 +31,8 @@ logo=G+"""
 ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
                                                                  
 <<<<<<< STARTING >>>>>>>
-"""+(R+"{v1 }"+G,underline+C+"https://github.com/hackelite01/XSSProbe"+N+G)
+""" + (R + "{v1 }" + G) + underline + C + "https://github.com/hackelite01/XSSProbe" + N + G
+
 	
 ##=======
 """%(R+"{v1 }"+G,underline+C+"https://github.com/hackelite01/XSSProbe"+N+G)
