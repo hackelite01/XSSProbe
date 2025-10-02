@@ -3,10 +3,72 @@ from random import randint
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin,urlparse,parse_qs,urlencode
 from lib.helper.Log import *
+from lib.dom_xss import DOMXSSDetector
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class core:
+	
+	@classmethod
+	def main(cls, url, proxy, user_agent, payload, cookie, method):
+		"""Main scanning method for XSS vulnerabilities"""
+		global cookies, payloads, user_agents, proxies, target
+		target = url
+		cookies = cookie
+		payloads = payload
+		user_agents = user_agent
+		proxies = proxy
+		
+		scanner = cls()
+		scanner.scan_target(url, proxy, user_agent, payload, cookie, method)
+	
+	def __init__(self):
+		"""Initialize core scanner"""
+		pass
+	
+	def scan_target(self, url, proxy, user_agent, payload, cookie, method):
+		"""Scan target URL for XSS vulnerabilities"""
+		global cookies, payloads, user_agents, proxies, target
+		target = url
+		cookies = cookie
+		payloads = payload
+		user_agents = user_agent
+		proxies = proxy
+		
+		try:
+			Log.info("Testing target: " + url)
+			headers = user_agent if isinstance(user_agent, dict) else {'User-Agent': user_agent}
+			proxies_dict = eval(proxy) if proxy else None
+			
+			sess = session(proxies_dict, headers, cookie)
+			ctr = sess.get(url, timeout=10, verify=False)
+			self.body = ctr.text
+		except Exception as e:
+			Log.high("Internal error: "+str(e))
+			return
+		
+		if ctr.status_code > 400:
+			Log.info("Connection failed "+G+str(ctr.status_code))
+			return 
+		else:
+			Log.info("Connection estabilished "+G+str(ctr.status_code))
+		
+		# Set instance variables for use by other methods
+		self.url = url
+		self.payload = payload
+		self.session = sess
+		
+		if method >= 2:
+			self.post_method()
+			self.get_method()
+			self.get_method_form()
+			
+		elif method == 1:
+			self.post_method()
+			
+		elif method == 0:
+			self.get_method()
+			self.get_method_form()
 	
 	@classmethod
 	def generate(self,eff):		
@@ -18,16 +80,16 @@ class core:
 			"console.log(5000/3000)"
 		]
 		if eff == 1:
-			return "<script/>"+FUNCTION[randint(0,4)]+"<\script\>"
+			return "<script/>"+FUNCTION[randint(0,4)]+"<\\script\\>"
 		
 		elif eff == 2:
-			return "<\script/>"+FUNCTION[randint(0,4)]+"<\\script>"	
+			return "<\\script/>"+FUNCTION[randint(0,4)]+"<\\\\script>"	
 			
 		elif eff == 3:
-			return "<\script\> "+FUNCTION[randint(0,4)]+"<//script>"
+			return "<\\script\\> "+FUNCTION[randint(0,4)]+"<//script>"
 			
 		elif eff == 4:
-			return "<script>"+FUNCTION[randint(0,4)]+"<\script/>"
+			return "<script>"+FUNCTION[randint(0,4)]+"<\\script/>"
 			
 		elif eff == 5:
 			return "<script>"+FUNCTION[randint(0,4)]+"<//script>"
@@ -35,7 +97,6 @@ class core:
 		elif eff == 6:
 			return "<script>"+FUNCTION[randint(0,4)]+"</script>"
 			
-	@classmethod
 	def post_method(self):
 		bsObj=BeautifulSoup(self.body,"html.parser")
 		forms=bsObj.find_all("form",method=True)
@@ -75,7 +136,6 @@ class core:
 				else:
 					Log.info("Parameter page using (POST) payloads but not 100% yet...")
 	
-	@classmethod
 	def get_method_form(self):
 		bsObj=BeautifulSoup(self.body,"html.parser")
 		forms=bsObj.find_all("form",method=True)
@@ -120,7 +180,6 @@ class core:
 				else:
 					Log.info("\033[0;35;47m Parameter page using (GET) payloads but not 100% yet...")
 		
-	@classmethod
 	def get_method(self):
 		bsObj=BeautifulSoup(self.body,"html.parser")
 		links=bsObj.find_all("a",href=True)
@@ -153,36 +212,34 @@ class core:
 					else:
 						Log.info("URL is not an HTTP url, ignoring")
 	
-	@classmethod
-	def main(self,url,proxy,headers,payload,cookie,method=2):
-	
-		print(W+"*"*15)
-		self.payload=payload
-		self.url=url
+	def dom_xss_scan(self):
+		"""
+		Perform DOM XSS vulnerability scanning
+		"""
+		Log.info("Initializing DOM XSS detection...")
+		dom_detector = DOMXSSDetector()
 		
-		self.session=session(proxy,headers,cookie)
-		Log.info("Checking connection to: "+Y+url)	
-		try:
-			ctr=self.session.get(url)
-			self.body=ctr.text
-		except Exception as e:
-			Log.high("Internal error: "+str(e))
-			return
+		# Perform DOM XSS scan
+		dom_results = dom_detector.scan_for_dom_xss(
+			target_url=self.url,
+			proxy=self.session.proxies,
+			headers=self.session.headers,
+			cookie=str(self.session.cookies.get_dict())
+		)
 		
-		if ctr.status_code > 400:
-			Log.info("Connection failed "+G+str(ctr.status_code))
-			return 
+		# Log results
+		if dom_results.get('has_dom_xss'):
+			Log.high("DOM XSS vulnerabilities detected!")
+			
+			# Save to file
+			with open("xss.txt", "a") as file:
+				file.write(f"DOM XSS - {self.url}\n")
+				if dom_results.get('successful_tests'):
+					for test in dom_results['successful_tests']:
+						file.write(f"  Payload: {test['payload']}\n")
+						file.write(f"  URL: {test['url']}\n")
+				file.write("\n")
 		else:
-			Log.info("Connection estabilished "+G+str(ctr.status_code))
-		
-		if method >= 2:
-			self.post_method()
-			self.get_method()
-			self.get_method_form()
+			Log.info("No DOM XSS vulnerabilities detected")
 			
-		elif method == 1:
-			self.post_method()
-			
-		elif method == 0:
-			self.get_method()
-			self.get_method_form()
+		return dom_results
