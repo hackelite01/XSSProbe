@@ -30,12 +30,4 @@ logo = G + """
 ██╔╝ ██╗███████║███████║██║     ██║  ██║╚██████╔╝██████╔╝███████╗
 ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝
                                                                  
-<<<<<<< STARTING >>>>>>>
-""" + (R + "{v1 }" + G) + underline + C + "https://github.com/hackelite01/XSSProbe" + N + G
-
-	
-##=======
-"""%(R+"{v1 }"+G,underline+C+"https://github.com/hackelite01/XSSProbe"+N+G)
-	
->>>>>>> branch 'master' of https://github.com/hackelite01/XSSProbe
-"""
+""" + R + "{v1.0}" + G + underline + C + "https://github.com/hackelite01/XSSProbe" + N
