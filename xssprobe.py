@@ -3,6 +3,7 @@ import argparse
 from lib.helper.helper import *
 from lib.helper.Log import *
 from lib.core import *
+from lib.dom_xss import DOMXSSDetector
 from random import randint
 from lib.crawler.crawler import *
 epilog="""
@@ -37,6 +38,7 @@ def start():
 	pos_opt.add_argument("--user-agent",metavar="",help="Request user agent (e.g. Chrome/2.1.1/...)",default=agent)
 	pos_opt.add_argument("--single",metavar="",help="Single scan. No crawling just one address")
 	pos_opt.add_argument("--proxy",default=None,metavar="",help="Set proxy (e.g. {'https':'https://10.10.1.10:1080'})")
+	pos_opt.add_argument("--dom-xss",action="store_true",help="Enable DOM XSS detection (JavaScript analysis)")
 	pos_opt.add_argument("--about",action="store_true",help="Print information about XSSProbe tool")
 	pos_opt.add_argument("--cookie",help="Set cookie (e.g {'ID':'1094200543'})",default='''{"ID":"1094200543"}''',metavar="")
 	
@@ -46,10 +48,32 @@ def start():
 	if getopt.u:
 		core.main(getopt.u,getopt.proxy,getopt.user_agent,check(getopt),getopt.cookie,getopt.method)
 		
+		if getopt.dom_xss:
+			Log.info("Starting DOM XSS detection...")
+			dom_detector = DOMXSSDetector()
+			dom_vulnerabilities = dom_detector.scan_for_dom_xss(getopt.u)
+			if dom_vulnerabilities:
+				Log.info(f"Found {len(dom_vulnerabilities)} potential DOM XSS vulnerabilities!")
+				for vuln in dom_vulnerabilities:
+					Log.high(f"DOM XSS found: {vuln}")
+			else:
+				Log.info("No DOM XSS vulnerabilities detected.")
+		
 		crawler.crawl(getopt.u,int(getopt.depth),getopt.proxy,getopt.user_agent,check(getopt),getopt.method,getopt.cookie)
 		
 	elif getopt.single:
 		core.main(getopt.single,getopt.proxy,getopt.user_agent,check(getopt),getopt.cookie,getopt.method)
+		
+		if getopt.dom_xss:
+			Log.info("Starting DOM XSS detection...")
+			dom_detector = DOMXSSDetector()
+			dom_vulnerabilities = dom_detector.scan_for_dom_xss(getopt.single)
+			if dom_vulnerabilities:
+				Log.info(f"Found {len(dom_vulnerabilities)} potential DOM XSS vulnerabilities!")
+				for vuln in dom_vulnerabilities:
+					Log.high(f"DOM XSS found: {vuln}")
+			else:
+				Log.info("No DOM XSS vulnerabilities detected.")
 		
 	elif getopt.about:
 		print("""
