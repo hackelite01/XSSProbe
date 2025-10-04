@@ -4,14 +4,17 @@ from datetime import datetime
 class Log:
 
 	@classmethod
-	def info(self,text):
+	def info(cls, text: str) -> None:
+		"""Log info level message"""
 		print("["+Y+datetime.now().strftime("%H:%M:%S")+N+"] ["+G+"INFO"+N+"] "+text)
  
 	@classmethod
-	def warning(self,text):
+	def warning(cls, text: str) -> None:
+		"""Log warning level message"""
 		print("["+Y+datetime.now().strftime("%H:%M:%S")+N+"] ["+Y+"WARNING"+N+"] "+text)
 
 	@classmethod
-	def high(self,text):
+	def high(cls, text: str) -> None:
+		"""Log critical/high severity message"""
 		print("["+Y+datetime.now().strftime("%H:%M:%S")+N+"] ["+R+"CRITICAL"+N+"] "+text)
  		

@@ -1,3 +1,4 @@
+from typing import Optional, Dict, Any, List
 from lib.helper.helper import *
 from random import randint
 from bs4 import BeautifulSoup
@@ -5,46 +6,72 @@ from urllib.parse import urljoin,urlparse,parse_qs,urlencode
 from lib.helper.Log import *
 from lib.dom_xss import DOMXSSDetector
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+import json
+import requests
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class core:
 	
 	@classmethod
-	def main(cls, url, proxy, user_agent, payload, cookie, method):
-		"""Main scanning method for XSS vulnerabilities"""
-		global cookies, payloads, user_agents, proxies, target
-		target = url
-		cookies = cookie
-		payloads = payload
-		user_agents = user_agent
-		proxies = proxy
+	def main(cls, url: str, proxy: str = None, user_agent: str = None, 
+			 payload: str = None, cookie: str = None, method: int = 2) -> None:
+		"""Main scanning method for XSS vulnerabilities
 		
+		Args:
+			url: Target URL to scan
+			proxy: Proxy configuration (JSON string)
+			user_agent: User agent string
+			payload: XSS payload to test
+			cookie: Cookie string (JSON format)
+			method: HTTP method (0=GET, 1=POST, 2=BOTH)
+		"""
 		scanner = cls()
 		scanner.scan_target(url, proxy, user_agent, payload, cookie, method)
 	
 	def __init__(self):
 		"""Initialize core scanner"""
-		pass
+		self.target = None
+		self.cookies = None
+		self.user_agent = None
+		self.proxy = None
+		self.payload = None
+		self.session = None
+		self.body = None
 	
-	def scan_target(self, url, proxy, user_agent, payload, cookie, method):
-		"""Scan target URL for XSS vulnerabilities"""
-		global cookies, payloads, user_agents, proxies, target
-		target = url
-		cookies = cookie
-		payloads = payload
-		user_agents = user_agent
-		proxies = proxy
+	def scan_target(self, url: str, proxy: str = None, user_agent: str = None,
+				   payload: str = None, cookie: str = None, method: int = 2) -> None:
+		"""Scan target URL for XSS vulnerabilities
+		
+		Args:
+			url: Target URL to scan
+			proxy: Proxy configuration (JSON string)
+			user_agent: User agent string
+			payload: XSS payload to test
+			cookie: Cookie string (JSON format)
+			method: HTTP method (0=GET, 1=POST, 2=BOTH)
+		"""
+		# Store configuration as instance variables
+		self.target = url
+		self.cookies = cookie
+		self.user_agent = user_agent
+		self.proxy = proxy
 		
 		try:
 			Log.info("Testing target: " + url)
 			headers = user_agent if isinstance(user_agent, dict) else {'User-Agent': user_agent}
-			proxies_dict = eval(proxy) if proxy else None
+			proxies_dict = json.loads(proxy) if proxy else None
 			
 			sess = session(proxies_dict, headers, cookie)
-			ctr = sess.get(url, timeout=10, verify=False)
+			ctr = sess.get(url, timeout=10, verify=False)  # TODO: Add SSL verification option
 			self.body = ctr.text
+		except requests.exceptions.RequestException as e:
+			Log.high(f"Request failed: {str(e)}")
+			return
+		except json.JSONDecodeError as e:
+			Log.high(f"Invalid proxy format (must be valid JSON): {str(e)}")
+			return
 		except Exception as e:
-			Log.high("Internal error: "+str(e))
+			Log.high(f"Unexpected error: {str(e)}")
 			return
 		
 		if ctr.status_code > 400:
@@ -71,7 +98,15 @@ class core:
 			self.get_method_form()
 	
 	@classmethod
-	def generate(self,eff):		
+	def generate(cls, eff: int) -> str:
+		"""Generate XSS payload based on effectiveness level
+		
+		Args:
+			eff: Effectiveness level (1-6)
+			
+		Returns:
+			Generated XSS payload string
+		"""		
 		FUNCTION=[
 			"prompt(5000/200)",
 			"alert(6000/3000)",
@@ -97,7 +132,8 @@ class core:
 		elif eff == 6:
 			return "<script>"+FUNCTION[randint(0,4)]+"</script>"
 			
-	def post_method(self):
+	def post_method(self) -> None:
+		"""Test POST method forms for XSS vulnerabilities"""
 		bsObj=BeautifulSoup(self.body,"html.parser")
 		forms=bsObj.find_all("form",method=True)
 		
@@ -122,21 +158,27 @@ class core:
 							Log.info("Form key name: "+G+key["name"]+N+" value: "+G+self.payload)
 							keys.update({key["name"]:self.payload})
 							
+					except KeyError as e:
+						Log.info(f"Missing form attribute: {str(e)}")
 					except Exception as e:
-						Log.info("Internal error: "+str(e))
+						Log.info(f"Form processing error: {str(e)}")
 				
 				Log.info("Sending payload (POST) method...")
-				req=self.session.post(urljoin(self.url,action),data=keys)
-				if self.payload in req.text:
-					Log.high("Detected XSS (POST) at "+urljoin(self.url,req.url))
-					file = open("xss.txt", "a")
-					file.write(str(req.url)+"\n\n")
-					file.close()
-					Log.high("Post data: "+str(keys))
-				else:
-					Log.info("Parameter page using (POST) payloads but not 100% yet...")
+				try:
+					req=self.session.post(urljoin(self.url,action),data=keys)
+					if self.payload in req.text:
+						Log.high("Detected XSS (POST) at "+urljoin(self.url,req.url))
+						file = open("xss.txt", "a")
+						file.write(str(req.url)+"\n\n")
+						file.close()
+						Log.high("Post data: "+str(keys))
+					else:
+						Log.info("Parameter page using (POST) payloads but not 100% yet...")
+				except Exception as e:
+					Log.high(f"POST request failed: {str(e)}")
 	
-	def get_method_form(self):
+	def get_method_form(self) -> None:
+		"""Test GET method forms for XSS vulnerabilities"""
 		bsObj=BeautifulSoup(self.body,"html.parser")
 		forms=bsObj.find_all("form",method=True)
 		
@@ -161,26 +203,32 @@ class core:
 							Log.info("Form key name: "+G+key["name"]+N+" value: "+G+self.payload)
 							keys.update({key["name"]:self.payload})
 							
-					except Exception as e:
-						Log.info("Internal error: "+str(e))
+					except KeyError as e:
+						Log.info(f"Missing form attribute: {str(e)}")
 						try:
 							Log.info("Form key name: "+G+key["name"]+N+" value: "+G+self.payload)
 							keys.update({key["name"]:self.payload})
 						except KeyError as e:
-							Log.info("Internal error: "+str(e))
+							Log.info(f"Form processing error: {str(e)}")
+					except Exception as e:
+						Log.info(f"Unexpected form error: {str(e)}")
 						
 				Log.info("Sending payload (GET) method...")
-				req=self.session.get(urljoin(self.url,action),params=keys)
-				if self.payload in req.text:
-					Log.high("Detected XSS (GET) at "+urljoin(self.url,req.url))
-					file = open("xss.txt", "a")
-					file.write(str(req.url)+"\n\n")
-					file.close()
-					Log.high("GET data: "+str(keys))
-				else:
-					Log.info("\033[0;35;47m Parameter page using (GET) payloads but not 100% yet...")
+				try:
+					req=self.session.get(urljoin(self.url,action),params=keys)
+					if self.payload in req.text:
+						Log.high("Detected XSS (GET) at "+urljoin(self.url,req.url))
+						file = open("xss.txt", "a")
+						file.write(str(req.url)+"\n\n")
+						file.close()
+						Log.high("GET data: "+str(keys))
+					else:
+						Log.info("\033[0;35;47m Parameter page using (GET) payloads but not 100% yet...")
+				except Exception as e:
+					Log.high(f"GET request failed: {str(e)}")
 		
-	def get_method(self):
+	def get_method(self) -> None:
+		"""Test GET method URL parameters for XSS vulnerabilities"""
 		bsObj=BeautifulSoup(self.body,"html.parser")
 		links=bsObj.find_all("a",href=True)
 		for a in links:
@@ -199,22 +247,28 @@ class core:
 					Log.info("Query (GET) : "+test)
 					Log.info("Query (GET) : "+query_all)
 
-					if not url.startswith("mailto:") and not url.startswith("tel:"):					
-						_respon=self.session.get(test,verify=False)
-						if self.payload in _respon.text or self.payload in self.session.get(query_all).text:
-							Log.high("Detected XSS (GET) at "+_respon.url)
-							file = open("xss.txt", "a")
-							file.write(str(_respon.url)+"\n\n")
-							file.close()
-						
-						else:
-							Log.info("Parameter page using (GET) payloads but not 100% yet...")
+					if not url.startswith("mailto:") and not url.startswith("tel:") and not url.startswith("javascript:"):					
+						try:
+							_respon=self.session.get(test,verify=False)
+							if self.payload in _respon.text or self.payload in self.session.get(query_all).text:
+								Log.high("Detected XSS (GET) at "+_respon.url)
+								file = open("xss.txt", "a")
+								file.write(str(_respon.url)+"\n\n")
+								file.close()
+							
+							else:
+								Log.info("Parameter page using (GET) payloads but not 100% yet...")
+						except Exception as e:
+							Log.high(f"GET request failed: {str(e)}")
 					else:
 						Log.info("URL is not an HTTP url, ignoring")
 	
-	def dom_xss_scan(self):
+	def dom_xss_scan(self) -> Dict[str, Any]:
 		"""
 		Perform DOM XSS vulnerability scanning
+		
+		Returns:
+			Dictionary containing DOM XSS scan results
 		"""
 		Log.info("Initializing DOM XSS detection...")
 		dom_detector = DOMXSSDetector()
