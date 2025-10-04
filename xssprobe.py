@@ -1,5 +1,6 @@
 
 import argparse
+from typing import Optional
 from lib.helper.helper import *
 from lib.helper.Log import *
 from lib.core import *
@@ -9,7 +10,15 @@ from lib.crawler.crawler import *
 epilog="""
 Github: https://www.github.com/hackelite01/XSSProbe
 """
-def check(getopt):
+def check(getopt) -> str:
+	"""Check and generate payload based on options
+	
+	Args:
+		getopt: Parsed command line arguments
+		
+	Returns:
+		XSS payload string
+	"""
 	payload=int(getopt.payload_level)
 	if payload > 6 and getopt.payload is None:
 		Log.info("Do you want use custom payload (Y/n)?")
@@ -25,7 +34,8 @@ def check(getopt):
 			
 	return payload if getopt.payload is None else getopt.payload
 	
-def start():
+def start() -> None:
+	"""Main entry point for XSSProbe application"""
 	parse=argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,usage="XSSProbe -u <target> [options]",epilog=epilog,add_help=False)
 	
 	pos_opt=parse.add_argument_group("Options")
@@ -46,7 +56,11 @@ def start():
 	print(logo)
 	Log.info("Starting XSSProbe...")
 	if getopt.u:
-		core.main(getopt.u,getopt.proxy,getopt.user_agent,check(getopt),getopt.cookie,getopt.method)
+		try:
+			core.main(getopt.u,getopt.proxy,getopt.user_agent,check(getopt),getopt.cookie,getopt.method)
+		except Exception as e:
+			Log.high(f"Scanning failed: {str(e)}")
+			return
 		
 		if getopt.dom_xss:
 			Log.info("Starting DOM XSS detection...")

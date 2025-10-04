@@ -1,5 +1,7 @@
 
-import requests, json
+import requests
+import json
+from typing import Optional
 ##### Warna ####### 
 N = '\033[0m'
 W = '\033[1;37m' 
@@ -15,11 +17,27 @@ underline = "\033[4m"
 agent = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'} 
 line="—————————————————" 
 #####################
-def session(proxies,headers,cookie):
-	r=requests.Session()
-	r.proxies=proxies
-	r.headers=headers
-	r.cookies.update(json.loads(cookie))
+def session(proxies: dict = None, headers: dict = None, cookie: str = None) -> requests.Session:
+	"""Create configured requests session
+	
+	Args:
+		proxies: Proxy configuration dictionary
+		headers: HTTP headers dictionary
+		cookie: Cookie string in JSON format
+		
+	Returns:
+		Configured requests Session object
+	"""
+	r = requests.Session()
+	if proxies:
+		r.proxies = proxies
+	if headers:
+		r.headers = headers
+	if cookie:
+		try:
+			r.cookies.update(json.loads(cookie))
+		except json.JSONDecodeError:
+			print(f"Warning: Invalid cookie format: {cookie}")
 	return r
 
 logo = G + """
