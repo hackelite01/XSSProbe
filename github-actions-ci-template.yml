@@ -1,0 +1,170 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: [3.7, 3.8, 3.9, '3.10', '3.11']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+    
+    - name: Format check with black
+      run: |
+        black --check --diff .
+    
+    - name: Import sorting check with isort
+      run: |
+        isort --check-only --diff .
+    
+    - name: Type checking with mypy
+      run: |
+        mypy lib/ --ignore-missing-imports
+    
+    - name: Test with pytest
+      run: |
+        pytest tests/ -v --cov=lib --cov-report=xml --cov-report=html
+    
+    - name: Security scan with bandit
+      run: |
+        bandit -r lib/ -f json -o bandit-report.json || true
+    
+    - name: Dependency vulnerability check
+      run: |
+        safety check --json --output safety-report.json || true
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  docker:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: xssprobe:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm xssprobe:test --help
+        docker run --rm xssprobe:test --about
+
+  security:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v2
+      with:
+        languages: python
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+  hacktoberfest-check:
+    name: Hacktoberfest Quality Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check PR Quality
+      run: |
+        # Check if PR has meaningful changes (not just whitespace/comments)
+        CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
+        echo "Changed files: $CHANGED_FILES"
+        
+        # Count lines of actual code changes
+        ADDED_LINES=$(git diff --numstat origin/${{ github.base_ref }}..HEAD | awk '{sum += $1} END {print sum}')
+        echo "Lines added: $ADDED_LINES"
+        
+        # Ensure substantial contribution
+        if [ "$ADDED_LINES" -lt 10 ]; then
+          echo "❌ PR has fewer than 10 lines of changes. Please add more substantial improvements."
+          exit 1
+        fi
+        
+        # Check for documentation updates
+        if echo "$CHANGED_FILES" | grep -q "README.md\|CONTRIBUTING.md\|docs/"; then
+          echo "✅ Documentation updated"
+        else
+          echo "⚠️ Consider updating documentation for your changes"
+        fi
+        
+        echo "✅ PR quality check passed"
