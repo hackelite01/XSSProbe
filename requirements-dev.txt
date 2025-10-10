@@ -1,0 +1,27 @@
+# Development Requirements for XSSProbe
+# Install with: pip install -r requirements-dev.txt
+
+# Testing frameworks
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.8.0
+
+# Code quality and formatting
+flake8>=5.0.0
+black>=22.0.0
+isort>=5.10.0
+
+# Type checking
+mypy>=0.991
+
+# Security scanning
+bandit>=1.7.0
+safety>=2.0.0
+
+# Documentation
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0
+
+# Development utilities
+pre-commit>=2.20.0
+tox>=3.25.0

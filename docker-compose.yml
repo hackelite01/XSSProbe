@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  xssprobe:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: xssprobe:latest
+    container_name: xssprobe
+    volumes:
+      # Mount results directory to persist scan results
+      - ./results:/app/results
+      # Mount custom payloads (if you have them)
+      - ./payloads:/app/payloads:ro
+    environment:
+      # Set timezone
+      - TZ=UTC
+      # Python environment
+      - PYTHONUNBUFFERED=1
+    # Example scan command (override as needed)
+    command: ["-u", "https://example.com", "--depth", "2"]
+    # Uncomment to use specific network
+    # networks:
+    #   - xssprobe-network
+    # Restart policy
+    restart: unless-stopped
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root filesystem (optional, for enhanced security)
+    # read_only: true
+    # tmpfs:
+    #   - /tmp
+
+  # Optional: Web-based scanner with API (future feature)
+  # xssprobe-web:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.web
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - xssprobe
+  #   environment:
+  #     - XSSPROBE_API=true
+
+# Optional: Custom networks
+# networks:
+#   xssprobe-network:
+#     driver: bridge
+
+# Volumes for persistent data
+volumes:
+  results:
+    driver: local
+  payloads:
+    driver: local
