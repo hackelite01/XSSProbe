@@ -4,6 +4,7 @@ from lib.helper.helper import *
 from lib.helper.Log import *
 from lib.core import *
 from lib.dom_xss import DOMXSSDetector
+from lib.payload_encoder import PayloadEncoder
 from random import randint
 from lib.crawler.crawler import *
 epilog="""
@@ -42,11 +43,55 @@ def start():
 	pos_opt.add_argument("--about",action="store_true",help="Print information about XSSProbe tool")
 	pos_opt.add_argument("--cookie",help="Set cookie (e.g {'ID':'1094200543'})",default='''{"ID":"1094200543"}''',metavar="")
 	
+	# Payload encoding options
+	encoding_opt = parse.add_argument_group("Payload Encoding & WAF Evasion")
+	encoding_opt.add_argument("--payload-encoding", action="store_true", help="Enable advanced payload encoding/obfuscation")
+	encoding_opt.add_argument("--encoding-level", type=int, choices=[1,2,3,4,5], default=2, help="Encoding intensity level (1-5)")
+	encoding_opt.add_argument("--target-waf", choices=["generic", "cloudflare", "akamai", "aws", "incapsula"], default="generic", help="Target specific WAF for evasion")
+	encoding_opt.add_argument("--encoding-methods", help="Comma-separated encoding methods (url,html,unicode,hex,etc)")
+	encoding_opt.add_argument("--context-aware-encoding", action="store_true", help="Enable context-aware encoding")
+	
 	getopt=parse.parse_args()
 	print(logo)
 	Log.info("Starting XSSProbe...")
 	if getopt.u:
-		core.main(getopt.u,getopt.proxy,getopt.user_agent,check(getopt),getopt.cookie,getopt.method)
+		# Get base payload
+		base_payload = check(getopt)
+		
+		# Apply payload encoding if enabled
+		if getopt.payload_encoding:
+			Log.info("Applying advanced payload encoding/obfuscation...")
+			try:
+				encoder_config = {
+					"obfuscation_level": getopt.encoding_level,
+					"context_aware": getopt.context_aware_encoding
+				}
+				
+				if getopt.encoding_methods:
+					encoder_config["encoding_methods"] = getopt.encoding_methods.split(',')
+				
+				payload_encoder = PayloadEncoder(encoder_config)
+				
+				# Generate encoded variants
+				encoded_payloads = payload_encoder.encode_payload(base_payload, context="html")
+				
+				# Generate WAF-specific evasion payloads
+				if getopt.target_waf != "generic":
+					waf_variants = payload_encoder.generate_evasion_payloads(base_payload, getopt.target_waf)
+					encoded_payloads.extend(waf_variants)
+				
+				Log.info(f"Generated {len(encoded_payloads)} encoded payload variants")
+				
+				# Test each encoded payload
+				for i, encoded_payload in enumerate(encoded_payloads, 1):
+					Log.info(f"Testing encoded payload {i}/{len(encoded_payloads)}")
+					core.main(getopt.u,getopt.proxy,getopt.user_agent,encoded_payload,getopt.cookie,getopt.method)
+				
+			except Exception as e:
+				Log.info(f"Payload encoding error: {e}")
+		else:
+			# Standard payload testing
+			core.main(getopt.u,getopt.proxy,getopt.user_agent,base_payload,getopt.cookie,getopt.method)
 		
 		if getopt.dom_xss:
 			Log.info("Starting DOM XSS detection...")
@@ -62,7 +107,43 @@ def start():
 		crawler.crawl(getopt.u,int(getopt.depth),getopt.proxy,getopt.user_agent,check(getopt),getopt.method,getopt.cookie)
 		
 	elif getopt.single:
-		core.main(getopt.single,getopt.proxy,getopt.user_agent,check(getopt),getopt.cookie,getopt.method)
+		# Get base payload
+		base_payload = check(getopt)
+		
+		# Apply payload encoding if enabled
+		if getopt.payload_encoding:
+			Log.info("Applying advanced payload encoding/obfuscation...")
+			try:
+				encoder_config = {
+					"obfuscation_level": getopt.encoding_level,
+					"context_aware": getopt.context_aware_encoding
+				}
+				
+				if getopt.encoding_methods:
+					encoder_config["encoding_methods"] = getopt.encoding_methods.split(',')
+				
+				payload_encoder = PayloadEncoder(encoder_config)
+				
+				# Generate encoded variants
+				encoded_payloads = payload_encoder.encode_payload(base_payload, context="html")
+				
+				# Generate WAF-specific evasion payloads
+				if getopt.target_waf != "generic":
+					waf_variants = payload_encoder.generate_evasion_payloads(base_payload, getopt.target_waf)
+					encoded_payloads.extend(waf_variants)
+				
+				Log.info(f"Generated {len(encoded_payloads)} encoded payload variants")
+				
+				# Test each encoded payload
+				for i, encoded_payload in enumerate(encoded_payloads, 1):
+					Log.info(f"Testing encoded payload {i}/{len(encoded_payloads)}")
+					core.main(getopt.single,getopt.proxy,getopt.user_agent,encoded_payload,getopt.cookie,getopt.method)
+				
+			except Exception as e:
+				Log.info(f"Payload encoding error: {e}")
+		else:
+			# Standard payload testing
+			core.main(getopt.single,getopt.proxy,getopt.user_agent,base_payload,getopt.cookie,getopt.method)
 		
 		if getopt.dom_xss:
 			Log.info("Starting DOM XSS detection...")
@@ -78,11 +159,28 @@ def start():
 	elif getopt.about:
 		print("""
 ***************
-Project: XSSProbe
+Project: XSSProbe - Advanced XSS Vulnerability Scanner
 License: MIT
 Author: Security Executions Code
-Last updates: 30 March 2024
-Note: Take your own RISK
+Contributors: Hacktoberfest 2025 Community
+Last updates: December 2024
+Version: 2.0 with Payload Encoding
+
+Features:
+- Basic XSS Detection (Reflected, Stored)
+- DOM XSS Analysis with JavaScript parsing
+- Advanced Payload Encoding/Obfuscation
+- WAF Evasion Techniques
+- Multiple encoding methods (URL, HTML, Unicode, etc.)
+- Context-aware payload generation
+- Target-specific WAF bypasses
+
+Payload Encoding Examples:
+  python xssprobe.py -u https://example.com --payload-encoding
+  python xssprobe.py -u https://example.com --payload-encoding --target-waf cloudflare
+  python xssprobe.py -u https://example.com --payload-encoding --encoding-level 4
+
+Note: Use responsibly and only on authorized targets
 ****************
 """+epilog)
 	else:
